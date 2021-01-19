@@ -4,6 +4,7 @@ import java.lang.reflect.Field;
 import java.util.List;
 
 import static es.horm.cart.Util.getFieldValue;
+import static es.horm.cart.Util.getFieldValueAsDouble;
 
 public class MeanSquaredError {
 
@@ -12,13 +13,13 @@ public class MeanSquaredError {
 
         double average = objects
                 .stream()
-                .mapToDouble(obj -> getFieldValue(obj, relevantField))
+                .mapToDouble(obj -> (double) getFieldValueAsDouble(obj, relevantField))
                 .average()
                 .getAsDouble();
 
         return objects
                 .stream()
-                .mapToDouble(obj -> Math.pow(getFieldValue(obj, relevantField) - average, 2))
+                .mapToDouble(obj -> Math.pow((double) getFieldValueAsDouble(obj, relevantField) - average, 2))
                 .average()
                 .getAsDouble();
     }

@@ -16,7 +16,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static es.horm.cart.Util.getFieldValue;
+import static es.horm.cart.Util.*;
 
 /**
  *
@@ -83,7 +83,7 @@ public class Regression<T> {
             currentNode.setData(splitData);
         }
 
-        double splitValue = splitData.getValueToSplitOn();
+        Comparable splitValue = splitData.getValueToSplitOn();
         Field dataColumn = splitData.getFieldToSplitOn();
 
         List<T> leftBranch = getLeftBranch(data, splitValue, dataColumn);
@@ -126,7 +126,7 @@ public class Regression<T> {
             for (T possibleSplitPoint :
                     dataSet) {
                 es.execute(() -> {
-                    double splitValue = getFieldValue(possibleSplitPoint, dataColumn);
+                    Comparable splitValue = getFieldValueAsComparable(possibleSplitPoint, dataColumn);
                     List<T> leftBranchCandidate = getLeftBranch(dataSet, splitValue, dataColumn);
                     if(leftBranchCandidate.size() < Parameters.MIN_BUCKET_SIZE) return;
 
@@ -137,7 +137,7 @@ public class Regression<T> {
                     double greaterEqualsCandidateMSE = MeanSquaredError.calculateMeanSquaredError(rightBranchCandidate, outputField);
                     double totalMSE = smallerThanCandidateMSE + greaterEqualsCandidateMSE;
 
-                    SplitData<T> splitData = new SplitData<>(totalMSE, dataColumn, possibleSplitPoint, getFieldValue(possibleSplitPoint, dataColumn));
+                    SplitData<T> splitData = new SplitData<>(totalMSE, dataColumn, possibleSplitPoint, getFieldValueAsComparable(possibleSplitPoint, dataColumn));
                     splitList.add(splitData);
                 });
             }
@@ -166,13 +166,7 @@ public class Regression<T> {
         return splitData;
     }
 
-    /**
-     * Non-Parallelized Version see findBestSplitParallel
-     * @param dataSet
-     * @return
-     */
-    @Deprecated
-    private SplitData<T> findBestSplit(List<T> dataSet) {
+    /*private SplitData<T> findBestSplit(List<T> dataSet) {
         // TODO: Delete?
         double smallestMSE = Double.MAX_VALUE;
         Field fieldToSplitOn = null;
@@ -204,7 +198,7 @@ public class Regression<T> {
         if(fieldToSplitOn != null)
         logger.debug("Best Split Point is " + fieldToSplitOn.toString() + " at Value " + getFieldValue(dataPointToSplitOn, fieldToSplitOn) + " with MSE: " + smallestMSE);
         return new SplitData<>(smallestMSE, fieldToSplitOn, dataPointToSplitOn, getFieldValue(dataPointToSplitOn, fieldToSplitOn));
-    }
+    }*/
 
     // ============================
     // Helper Methods
@@ -217,15 +211,18 @@ public class Regression<T> {
      * @param columnToSplitOn
      * @return
      */
-    private List<T> getLeftBranch(List<T> data, double splitValue, Field columnToSplitOn) {
+    private List<T> getLeftBranch(List<T> data, Comparable splitValue, Field columnToSplitOn) {
         return data.stream()
-                .filter(dataPoint -> getFieldValue(dataPoint, columnToSplitOn) < splitValue)
+                .filter(dataPoint -> getFieldValueAsComparable(dataPoint, columnToSplitOn).compareTo(splitValue) < 0)
                 .collect(Collectors.toList());
+        /*return data.stream()
+                .filter(dataPoint -> getFieldValue(dataPoint, columnToSplitOn) < splitValue)
+                .collect(Collectors.toList());*/
     }
 
-    private List<T> getRightBranch(List<T> data, double splitValue, Field columnToSplitOn) {
+    private List<T> getRightBranch(List<T> data, Comparable splitValue, Field columnToSplitOn) {
         return data.stream()
-                .filter(dataPoint -> getFieldValue(dataPoint, columnToSplitOn) >= splitValue)
+                .filter(dataPoint -> getFieldValueAsComparable(dataPoint, columnToSplitOn).compareTo(splitValue) >= 0)
                 .collect(Collectors.toList());
     }
 
@@ -265,7 +262,7 @@ public class Regression<T> {
         if (data.size() == 0) return Double.NaN;
 
         return data.stream()
-                .mapToDouble(obj -> getFieldValue(obj, outputField))
+                .mapToDouble(obj -> getFieldValueAsDouble(obj, outputField))
                 .average()
                 .getAsDouble();
     }
