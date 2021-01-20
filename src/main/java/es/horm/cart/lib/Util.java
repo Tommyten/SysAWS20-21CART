@@ -1,4 +1,4 @@
-package es.horm.cart;
+package es.horm.cart.lib;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -9,9 +9,9 @@ public class Util {
 
     private static Logger logger = LogManager.getLogger(Regression.class);
 
-    public static <T> Object getFieldValue(T object, Field field) {
+    public static <T, R> R getFieldValue(T object, Field field) {
         try {
-            return field.get(object);
+            return (R) field.get(object);
         } catch (IllegalAccessException e) {
             logger.error("Cannot access values of fields. Have they been flagged as accessible?");
             e.printStackTrace();

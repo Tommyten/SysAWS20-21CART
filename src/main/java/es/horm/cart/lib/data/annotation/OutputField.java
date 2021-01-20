@@ -1,4 +1,4 @@
-package es.horm.cart.data.annotation;
+package es.horm.cart.lib.data.annotation;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

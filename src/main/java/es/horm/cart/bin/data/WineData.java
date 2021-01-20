@@ -1,7 +1,7 @@
-package es.horm.cart.data;
+package es.horm.cart.bin.data;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import es.horm.cart.data.annotation.OutputField;
+import es.horm.cart.lib.data.annotation.OutputField;
 
 public class WineData {
 

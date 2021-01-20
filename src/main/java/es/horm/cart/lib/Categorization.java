@@ -1,11 +1,11 @@
-package es.horm.cart;
+package es.horm.cart.lib;
 
-import es.horm.cart.data.LeafData;
-import es.horm.cart.data.SplitData;
-import es.horm.cart.data.annotation.OutputField;
-import es.horm.cart.metrics.MeanSquaredError;
-import es.horm.cart.tree.BinaryTree;
-import es.horm.cart.tree.Node;
+import es.horm.cart.lib.data.LeafData;
+import es.horm.cart.lib.data.SplitData;
+import es.horm.cart.lib.data.annotation.OutputField;
+import es.horm.cart.lib.metrics.Gini;
+import es.horm.cart.lib.tree.BinaryTree;
+import es.horm.cart.lib.tree.Node;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -16,13 +16,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static es.horm.cart.Util.*;
+import static es.horm.cart.lib.Util.*;
 
-/**
- *
- * @param <T>
- */
-public class Regression<T> {
+public class Categorization<T> {
 
     private static final Logger logger = LogManager.getLogger(Regression.class);
 
@@ -30,17 +26,24 @@ public class Regression<T> {
     private final List<Field> dataFields;
     private final List<T> dataSet;
 
-    private BinaryTree tree;
+    private final List<?> categories;
 
-    public Regression(List<T> dataSet) {
+    private final BinaryTree tree;
+
+    public Categorization(List<T> dataSet) {
         this.dataSet = dataSet;
         outputField = getOutputField(dataSet.get(0).getClass());
         dataFields = getDataFields(dataSet.get(0).getClass());
+        setAllFieldsAccessible();
+
+        categories = getAllCategoriesDistinct(dataSet);
+        for (Object obj :
+                categories) {
+            System.out.println(obj);
+        }
 
         tree = new BinaryTree();
         tree.setRoot(new Node());
-
-        setAllFieldsAccessible();
     }
 
     /**
@@ -56,27 +59,21 @@ public class Regression<T> {
     }
 
     /**
-     * Starting point for the recursive building of the binary regression Tree
+     * Starting point for the recursive building of the binary categorization Tree
      * @return the built regression tree
      * @see BinaryTree
      */
-    public BinaryTree buildRegressionTree() {
+    public BinaryTree buildCategorizationTree() {
         populateTree(dataSet, tree.getRoot());
         System.out.println(tree.toString());
         return tree;
     }
 
-    /**
-     *
-     * @param data
-     * @param currentNode
-     */
     private void populateTree(List<T> data, Node currentNode) {
-
-        SplitData<T> splitData = findBestSplitParallel(data);
+        SplitData<T> splitData = findBestSplit(data);
 
         if(splitData == null || splitData.getFieldToSplitOn() == null) {
-            LeafData leafData = new LeafData(getAverageOfOutputField(data));
+            LeafData leafData = new LeafData(getAllCategories(data));
             currentNode.setData(leafData);
             return;
         } else {
@@ -91,8 +88,8 @@ public class Regression<T> {
         // Wenn zu wenig Daten vorhanden sind -> Leafnode
         // Wenn MSE == 0 -> Daten perfekt kategorisiert also Leafnode
         if (leftBranch.size() <= Parameters.MIN_BUCKET_SIZE * 2 - 1 ||
-                MeanSquaredError.calculateMeanSquaredError(leftBranch, outputField) == 0) {
-            LeafData leafData = new LeafData(getAverageOfOutputField(leftBranch));
+                Gini.calculateGiniForGroup(leftBranch, outputField, categories) == 0) {
+            LeafData leafData = new LeafData(getAllCategories(leftBranch));
             currentNode.setLeft(new Node(leafData));
         } else {
             currentNode.setLeft(new Node());
@@ -102,8 +99,8 @@ public class Regression<T> {
         List<T> rightBranch = getRightBranch(data, splitValue, dataColumn);
 
         if (rightBranch.size() <= Parameters.MIN_BUCKET_SIZE * 2 - 1 ||
-                MeanSquaredError.calculateMeanSquaredError(rightBranch, outputField) == 0) {
-            LeafData leafData = new LeafData(getAverageOfOutputField(rightBranch));
+                Gini.calculateGiniForGroup(leftBranch, outputField, categories) == 0) {
+            LeafData leafData = new LeafData(getAllCategories(rightBranch));
             currentNode.setRight(new Node(leafData));
         } else {
             currentNode.setRight(new Node());
@@ -111,12 +108,7 @@ public class Regression<T> {
         }
     }
 
-    /**
-     * Parallelized Version of findBestSplit!
-     * @param dataSet
-     * @return
-     */
-    private SplitData<T> findBestSplitParallel(List<T> dataSet) {
+    private SplitData<T> findBestSplit(List<T> data) {
         List<SplitData<T>> splitList = Collections.synchronizedList(new ArrayList<>());
 
         ExecutorService es = Executors.newCachedThreadPool();
@@ -124,20 +116,17 @@ public class Regression<T> {
         for (Field dataColumn :
                 dataFields) {
             for (T possibleSplitPoint :
-                    dataSet) {
+                    data) {
                 es.execute(() -> {
                     Comparable splitValue = getFieldValueAsComparable(possibleSplitPoint, dataColumn);
-                    List<T> leftBranchCandidate = getLeftBranch(dataSet, splitValue, dataColumn);
+                    List<T> leftBranchCandidate = getLeftBranch(data, splitValue, dataColumn);
                     if(leftBranchCandidate.size() < Parameters.MIN_BUCKET_SIZE) return;
 
-                    List<T> rightBranchCandidate = getRightBranch(dataSet, splitValue, dataColumn);
+                    List<T> rightBranchCandidate = getRightBranch(data, splitValue, dataColumn);
                     if(rightBranchCandidate.size() <= Parameters.MIN_BUCKET_SIZE) return;
 
-                    double smallerThanCandidateMSE = MeanSquaredError.calculateMeanSquaredError(leftBranchCandidate, outputField);
-                    double greaterEqualsCandidateMSE = MeanSquaredError.calculateMeanSquaredError(rightBranchCandidate, outputField);
-                    double totalMSE = smallerThanCandidateMSE + greaterEqualsCandidateMSE;
-
-                    SplitData<T> splitData = new SplitData<>(totalMSE, dataColumn, possibleSplitPoint, getFieldValueAsComparable(possibleSplitPoint, dataColumn));
+                    double gini = Gini.calculateGiniForDataset(leftBranchCandidate, rightBranchCandidate, outputField, categories);
+                    SplitData<T> splitData = new SplitData<>(gini, dataColumn, possibleSplitPoint, getFieldValueAsComparable(possibleSplitPoint, dataColumn));
                     splitList.add(splitData);
                 });
             }
@@ -162,43 +151,9 @@ public class Regression<T> {
         if(splitData.getFieldToSplitOn() != null)
             logger.debug("Best Split Point is " + splitData.getFieldToSplitOn().toString() +
                     " at Value " + splitData.getValueToSplitOn() +
-                    " with MSE: " + splitData.getMseOfSplit());
+                    " with Gini: " + splitData.getMseOfSplit());
         return splitData;
     }
-
-    /*private SplitData<T> findBestSplit(List<T> dataSet) {
-        // TODO: Delete?
-        double smallestMSE = Double.MAX_VALUE;
-        Field fieldToSplitOn = null;
-        T dataPointToSplitOn = null;
-
-        for (Field dataColumn :
-                dataFields) {
-            for (T possibleSplitPoint :
-                    dataSet) {
-                double splitValue = getFieldValue(possibleSplitPoint, dataColumn);
-                List<T> leftBranchCandidate = getLeftBranch(dataSet, splitValue, dataColumn);
-                if(leftBranchCandidate.size() < Parameters.MIN_BUCKET_SIZE) continue;
-
-                List<T> rightBranchCandidate = getRightBranch(dataSet, splitValue, dataColumn);
-                if(rightBranchCandidate.size() <= Parameters.MIN_BUCKET_SIZE) continue;
-
-                double smallerThanCandidateMSE = MeanSquaredError.calculateMeanSquaredError(leftBranchCandidate, outputField);
-                double greaterEqualsCandidateMSE = MeanSquaredError.calculateMeanSquaredError(rightBranchCandidate, outputField);
-                double totalMSE = smallerThanCandidateMSE + greaterEqualsCandidateMSE;
-
-                if (totalMSE < smallestMSE) {
-                    smallestMSE = totalMSE;
-                    fieldToSplitOn = dataColumn;
-                    dataPointToSplitOn = possibleSplitPoint;
-                }
-            }
-        }
-
-        if(fieldToSplitOn != null)
-        logger.debug("Best Split Point is " + fieldToSplitOn.toString() + " at Value " + getFieldValue(dataPointToSplitOn, fieldToSplitOn) + " with MSE: " + smallestMSE);
-        return new SplitData<>(smallestMSE, fieldToSplitOn, dataPointToSplitOn, getFieldValue(dataPointToSplitOn, fieldToSplitOn));
-    }*/
 
     // ============================
     // Helper Methods
@@ -215,9 +170,6 @@ public class Regression<T> {
         return data.stream()
                 .filter(dataPoint -> getFieldValueAsComparable(dataPoint, columnToSplitOn).compareTo(splitValue) < 0)
                 .collect(Collectors.toList());
-        /*return data.stream()
-                .filter(dataPoint -> getFieldValue(dataPoint, columnToSplitOn) < splitValue)
-                .collect(Collectors.toList());*/
     }
 
     private List<T> getRightBranch(List<T> data, Comparable splitValue, Field columnToSplitOn) {
@@ -227,14 +179,15 @@ public class Regression<T> {
     }
 
     /**
-     * Returns the Field of the class, which is marked with the @{@link es.horm.cart.data.annotation.OutputField} annotation
+     * Returns the Field of the class, which is marked with the @{@link es.horm.cart.lib.data.annotation.OutputField} annotation
      * @see OutputField
      * @param clazz The class in which the output Field is to be found
-     * @return The Field marked with the the @{@link es.horm.cart.data.annotation.OutputField} annotation
-     * @throws RuntimeException if no Field in the given Class is marked with the @{@link es.horm.cart.data.annotation.OutputField} annotation
+     * @return The Field marked with the the @{@link es.horm.cart.lib.data.annotation.OutputField} annotation
+     * @throws RuntimeException if no Field in the given Class is marked with the @{@link es.horm.cart.lib.data.annotation.OutputField} annotation
      */
     private Field getOutputField(Class clazz) {
         // TODO: Was ist wenn mehrere als Output field deklariert sind
+        // TODO: duplicate Code; Same Code exists in Regression.java
         Field[] fieldList = clazz.getDeclaredFields();
         for (Field f :
                 fieldList) {
@@ -245,25 +198,24 @@ public class Regression<T> {
     }
 
     /**
-     * Returns all Fields <b>without</b> the @{@link es.horm.cart.data.annotation.OutputField} annotation
+     * Returns all Fields <b>without</b> the @{@link es.horm.cart.lib.data.annotation.OutputField} annotation
      * @param clazz The class in which the data Field is to be found
      * @return a list of all datafields
      */
     private List<Field> getDataFields(Class clazz) {
         //TODO: Was wenn es auch noch andere als Data und OutputField gibt? -> Evtl. zweite Annotation?
+        // TODO: duplicate Code; Same Code exists in Regression.java
         Field[] fieldList = clazz.getDeclaredFields();
         return Arrays.stream(fieldList)
                 .filter(field -> field.getAnnotation(OutputField.class) == null)
                 .collect(Collectors.toUnmodifiableList());
     }
 
+    private List<?> getAllCategoriesDistinct(List<T> data) {
+        return data.stream().map(t -> getFieldValue(t, outputField)).distinct().collect(Collectors.toList());
+    }
 
-    private <T> double getAverageOfOutputField(List<T> data) {
-        if (data.size() == 0) return Double.NaN;
-
-        return data.stream()
-                .mapToDouble(obj -> getFieldValueAsDouble(obj, outputField))
-                .average()
-                .getAsDouble();
+    private List<?> getAllCategories(List<T> data) {
+        return data.stream().map(t -> getFieldValue(t, outputField)).collect(Collectors.toList());
     }
 }

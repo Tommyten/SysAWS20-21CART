@@ -1,6 +1,7 @@
 package es.horm.cart;
 
-import es.horm.cart.data.TestData;
+import es.horm.cart.bin.DataReader;
+import es.horm.cart.bin.data.TestData;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

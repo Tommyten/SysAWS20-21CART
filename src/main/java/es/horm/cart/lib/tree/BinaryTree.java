@@ -1,4 +1,4 @@
-package es.horm.cart.tree;
+package es.horm.cart.lib.tree;
 
 public class BinaryTree {
 
@@ -18,4 +18,15 @@ public class BinaryTree {
     public void setRoot(Node root) {
         this.root = root;
     }
+
+    /*@Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+
+        Node currentNode = root;
+        currentNode.getData()
+
+
+        return super.toString();
+    }*/
 }

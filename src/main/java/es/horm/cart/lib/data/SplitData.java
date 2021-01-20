@@ -1,4 +1,4 @@
-package es.horm.cart.data;
+package es.horm.cart.lib.data;
 
 import java.lang.reflect.Field;
 
@@ -31,7 +31,7 @@ public class SplitData<T> {
         return valueToSplitOn;
     }
 
-    @Override
+    /*@Override
     public String toString() {
         return "SplitData{" +
                 "mseOfSplit=" + mseOfSplit +
@@ -39,5 +39,10 @@ public class SplitData<T> {
                 ", dataPointToSplitOn=" + dataPointToSplitOn +
                 ", valueToSplitOn=" + valueToSplitOn +
                 '}';
+    }*/
+
+    @Override
+    public String toString() {
+        return fieldToSplitOn.getName() + " < " + valueToSplitOn;
     }
 }
