@@ -32,4 +32,24 @@ public class DataReader {
 
         return data;
     }
+
+    public static <T> List<T> readData(Class clazz, String filename, char columnSeparator) {
+        List<T> data = new ArrayList<>();
+        CsvMapper csvMapper = new CsvMapper();
+        CsvSchema schema = CsvSchema.emptySchema().withHeader().withColumnSeparator(columnSeparator);
+
+        ObjectReader oReader = csvMapper.readerFor(clazz).with(schema);
+
+        try (Reader reader = new FileReader(filename)) {
+            MappingIterator<T> mi = oReader.readValues(reader);
+            while (mi.hasNext()) {
+                T current = mi.next();
+                data.add(current);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return data;
+    }
 }

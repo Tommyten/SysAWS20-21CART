@@ -1,18 +1,11 @@
 package es.horm.cart.bin;
 
-import es.horm.cart.bin.data.GiniTestData;
-import es.horm.cart.bin.data.TitanicData;
-import es.horm.cart.lib.Categorization;
-import es.horm.cart.lib.Regression;
-import es.horm.cart.bin.data.TestData;
-import es.horm.cart.lib.data.annotation.OutputField;
-import es.horm.cart.lib.metrics.Gini;
+import es.horm.cart.bin.data.WineData;
+import es.horm.cart.lib.CART;
 import es.horm.cart.lib.tree.BinaryTree;
 import es.horm.cart.lib.tree.BinaryTreePrinter;
 
-import java.lang.reflect.Field;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Hello world!
@@ -40,16 +33,26 @@ public class App {
         System.out.println(gini);*/
 //        Categorization categorization = new Categorization(dataSet);
 
-        List<GiniTestData> dataSet = DataReader.readData(GiniTestData.class, "testDataGini.csv");
-        Categorization categorization = new Categorization(dataSet);
-        BinaryTree tree = categorization.buildCategorizationTree();
-        new BinaryTreePrinter(tree).print(System.out);
-
-
-        /*List<TestData> dataSet = DataReader.readData(TestData.class, "testData.csv");
-        Regression regression = new Regression(dataSet);
-        BinaryTree tree = regression.buildRegressionTree();
+        /*List<TitanicData> dataSetTitanic = DataReader.readData(TitanicData.class, "titanic.csv", ',');
+        CART cart = new CART(dataSetTitanic);
+        BinaryTree tree = cart.buildTree(15);
         new BinaryTreePrinter(tree).print(System.out);*/
+
+//        List<TitanicData> dataSetTitanic = DataReader.readData(TitanicData.class, "titanic.csv", ',');
+        /*Categorization categorization = new Categorization(dataSetTitanic);
+        BinaryTree tree2 = categorization.buildTree(15);
+        new BinaryTreePrinter(tree2).print(System.out);*/
+
+
+        /*List<WineData> dataSet = DataReader.readData(WineData.class, "winequality-white.csv");
+        Regression regression = new Regression(dataSet);
+        BinaryTree tree = regression.buildRegressionTree(30);
+        new BinaryTreePrinter(tree).print(System.out);*/
+
+        List<WineData> dataSet = DataReader.readData(WineData.class, "winequality-white.csv");
+        CART<WineData> cart = new CART<>(dataSet);
+        BinaryTree tree1 = cart.buildTree(30);
+        new BinaryTreePrinter(tree1).print(System.out);
 //        WineData wineData = new WineData(4.8f,0.65f,0.12f,1.1f,0.013f,4,10,0.99246f,3.32f,0.36f,13.5f,4);
         //findValue(tree, wineData);
     }

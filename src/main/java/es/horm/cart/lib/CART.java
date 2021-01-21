@@ -3,7 +3,9 @@ package es.horm.cart.lib;
 import es.horm.cart.lib.data.LeafData;
 import es.horm.cart.lib.data.SplitData;
 import es.horm.cart.lib.data.annotation.OutputField;
-import es.horm.cart.lib.metrics.Gini;
+import es.horm.cart.lib.strategy.CategorizationStrategy;
+import es.horm.cart.lib.strategy.RegressionStrategy;
+import es.horm.cart.lib.strategy.Strategy;
 import es.horm.cart.lib.tree.BinaryTree;
 import es.horm.cart.lib.tree.Node;
 import org.apache.logging.log4j.LogManager;
@@ -16,34 +18,48 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static es.horm.cart.lib.Util.*;
+import static es.horm.cart.lib.Util.getFieldValue;
+import static es.horm.cart.lib.Util.getFieldValueAsComparable;
 
-public class Categorization<T> {
+public class CART<T> {
 
-    private static final Logger logger = LogManager.getLogger(Regression.class);
+    private static final Logger logger = LogManager.getLogger(CART.class);
+
+    private final Strategy<T> strategy;
 
     private final Field outputField;
     private final List<Field> dataFields;
     private final List<T> dataSet;
 
-    private final List<?> categories;
-
     private final BinaryTree tree;
 
-    public Categorization(List<T> dataSet) {
+    private int minBucketSize;
+
+    public CART(List<T> dataSet) {
         this.dataSet = dataSet;
         outputField = getOutputField(dataSet.get(0).getClass());
         dataFields = getDataFields(dataSet.get(0).getClass());
         setAllFieldsAccessible();
 
-        categories = getAllCategoriesDistinct(dataSet);
-        for (Object obj :
-                categories) {
-            System.out.println(obj);
-        }
+        strategy = getStrategy();
 
         tree = new BinaryTree();
         tree.setRoot(new Node());
+    }
+
+    private Strategy<T> getStrategy() {
+        Strategy<T> strategy;
+        if (outputField.getType().equals(double.class) ||
+                outputField.getType().equals(Double.class) ||
+                outputField.getType().equals(Float.class) ||
+                outputField.getType().equals(float.class)) {
+            logger.info("Assuming a Regression Problem");
+            strategy = new RegressionStrategy<T>();
+        } else {
+            logger.info("Assuming a Categorization Problem");
+            strategy = new CategorizationStrategy<T>();
+        }
+        return strategy;
     }
 
     /**
@@ -60,10 +76,14 @@ public class Categorization<T> {
 
     /**
      * Starting point for the recursive building of the binary categorization Tree
+     *
+     * @param minBucketSize
      * @return the built regression tree
      * @see BinaryTree
      */
-    public BinaryTree buildCategorizationTree() {
+    public BinaryTree buildTree(int minBucketSize) {
+        this.minBucketSize = minBucketSize;
+        strategy.initStrategy(minBucketSize, outputField, dataSet);
         populateTree(dataSet, tree.getRoot());
         System.out.println(tree.toString());
         return tree;
@@ -72,8 +92,8 @@ public class Categorization<T> {
     private void populateTree(List<T> data, Node currentNode) {
         SplitData<T> splitData = findBestSplit(data);
 
-        if(splitData == null || splitData.getFieldToSplitOn() == null) {
-            LeafData leafData = new LeafData(getAllCategories(data));
+        if (splitData == null || splitData.getFieldToSplitOn() == null) {
+            LeafData leafData = new LeafData(strategy.getLeafData(data));
             currentNode.setData(leafData);
             return;
         } else {
@@ -87,9 +107,9 @@ public class Categorization<T> {
 
         // Wenn zu wenig Daten vorhanden sind -> Leafnode
         // Wenn MSE == 0 -> Daten perfekt kategorisiert also Leafnode
-        if (leftBranch.size() <= Parameters.MIN_BUCKET_SIZE * 2 - 1 ||
-                Gini.calculateGiniForGroup(leftBranch, outputField, categories) == 0) {
-            LeafData leafData = new LeafData(getAllCategories(leftBranch));
+        if (leftBranch.size() <= minBucketSize * 2 - 1 ||
+                strategy.getMetric(leftBranch) == 0) {
+            LeafData leafData = new LeafData(strategy.getLeafData(leftBranch));
             currentNode.setLeft(new Node(leafData));
         } else {
             currentNode.setLeft(new Node());
@@ -98,9 +118,9 @@ public class Categorization<T> {
 
         List<T> rightBranch = getRightBranch(data, splitValue, dataColumn);
 
-        if (rightBranch.size() <= Parameters.MIN_BUCKET_SIZE * 2 - 1 ||
-                Gini.calculateGiniForGroup(leftBranch, outputField, categories) == 0) {
-            LeafData leafData = new LeafData(getAllCategories(rightBranch));
+        if (rightBranch.size() <= minBucketSize * 2 - 1 ||
+                strategy.getMetric(leftBranch) == 0) {
+            LeafData leafData = new LeafData(strategy.getLeafData(rightBranch));
             currentNode.setRight(new Node(leafData));
         } else {
             currentNode.setRight(new Node());
@@ -117,24 +137,13 @@ public class Categorization<T> {
                 dataFields) {
             for (T possibleSplitPoint :
                     data) {
-                es.execute(() -> {
-                    Comparable splitValue = getFieldValueAsComparable(possibleSplitPoint, dataColumn);
-                    List<T> leftBranchCandidate = getLeftBranch(data, splitValue, dataColumn);
-                    if(leftBranchCandidate.size() < Parameters.MIN_BUCKET_SIZE) return;
-
-                    List<T> rightBranchCandidate = getRightBranch(data, splitValue, dataColumn);
-                    if(rightBranchCandidate.size() <= Parameters.MIN_BUCKET_SIZE) return;
-
-                    double gini = Gini.calculateGiniForDataset(leftBranchCandidate, rightBranchCandidate, outputField, categories);
-                    SplitData<T> splitData = new SplitData<>(gini, dataColumn, possibleSplitPoint, getFieldValueAsComparable(possibleSplitPoint, dataColumn));
-                    splitList.add(splitData);
-                });
+                es.execute(strategy.findSplit(dataColumn, possibleSplitPoint, data, splitList));
             }
         }
 
         es.shutdown();
         boolean finished = false;
-        while(!finished) {
+        while (!finished) {
             try {
                 finished = es.awaitTermination(1, TimeUnit.MINUTES);
             } catch (InterruptedException e) {
@@ -144,11 +153,11 @@ public class Categorization<T> {
 
         SplitData<T> splitData;
 
-        if(splitList.size() > 0)
-            splitData =  Collections.min(splitList, Comparator.comparing(SplitData::getMseOfSplit));
+        if (splitList.size() > 0)
+            splitData = Collections.min(splitList, Comparator.comparing(SplitData::getMseOfSplit));
         else return null;
 
-        if(splitData.getFieldToSplitOn() != null)
+        if (splitData.getFieldToSplitOn() != null)
             logger.debug("Best Split Point is " + splitData.getFieldToSplitOn().toString() +
                     " at Value " + splitData.getValueToSplitOn() +
                     " with Gini: " + splitData.getMseOfSplit());
@@ -160,19 +169,18 @@ public class Categorization<T> {
     // ============================
 
     /**
-     *
      * @param data
      * @param splitValue
      * @param columnToSplitOn
      * @return
      */
-    private List<T> getLeftBranch(List<T> data, Comparable splitValue, Field columnToSplitOn) {
+    public static <T> List<T> getLeftBranch(List<T> data, Comparable splitValue, Field columnToSplitOn) {
         return data.stream()
                 .filter(dataPoint -> getFieldValueAsComparable(dataPoint, columnToSplitOn).compareTo(splitValue) < 0)
                 .collect(Collectors.toList());
     }
 
-    private List<T> getRightBranch(List<T> data, Comparable splitValue, Field columnToSplitOn) {
+    public static <T> List<T> getRightBranch(List<T> data, Comparable splitValue, Field columnToSplitOn) {
         return data.stream()
                 .filter(dataPoint -> getFieldValueAsComparable(dataPoint, columnToSplitOn).compareTo(splitValue) >= 0)
                 .collect(Collectors.toList());
@@ -180,10 +188,11 @@ public class Categorization<T> {
 
     /**
      * Returns the Field of the class, which is marked with the @{@link es.horm.cart.lib.data.annotation.OutputField} annotation
-     * @see OutputField
+     *
      * @param clazz The class in which the output Field is to be found
      * @return The Field marked with the the @{@link es.horm.cart.lib.data.annotation.OutputField} annotation
      * @throws RuntimeException if no Field in the given Class is marked with the @{@link es.horm.cart.lib.data.annotation.OutputField} annotation
+     * @see OutputField
      */
     private Field getOutputField(Class clazz) {
         // TODO: Was ist wenn mehrere als Output field deklariert sind
@@ -199,6 +208,7 @@ public class Categorization<T> {
 
     /**
      * Returns all Fields <b>without</b> the @{@link es.horm.cart.lib.data.annotation.OutputField} annotation
+     *
      * @param clazz The class in which the data Field is to be found
      * @return a list of all datafields
      */

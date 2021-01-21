@@ -7,7 +7,7 @@ import java.lang.reflect.Field;
 
 public class Util {
 
-    private static Logger logger = LogManager.getLogger(Regression.class);
+    private static Logger logger = LogManager.getLogger(Util.class);
 
     public static <T, R> R getFieldValue(T object, Field field) {
         try {

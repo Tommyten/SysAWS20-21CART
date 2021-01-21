@@ -8,36 +8,30 @@ import java.util.Map;
 
 public class LeafData {
 
-    private double outputValue;
-    private List<?> outputCategories;
+    private Object output;
 
-    public LeafData(double outputValue) {
-        this.outputValue = outputValue;
+    public LeafData(Object output) {
+        this.output = output;
     }
 
-    public LeafData(List<?> outputCategories) {
-        this.outputCategories = outputCategories;
+    public Object getOutput() {
+        return output;
     }
 
-    public List<?> getOutputCategories() {
-        return outputCategories;
-    }
-
-    public double getOutputValue() {
-        return outputValue;
+    public void setOutput(Object output) {
+        this.output = output;
     }
 
     @Override
     public String toString() {
-        if (outputCategories == null)
-            return "Output Value: " + outputValue;
-        else {
-            StringBuilder output = new StringBuilder();
+        if(output instanceof List<?>) {
+            List<?> list = (List<?>) output;
+            StringBuilder outputString = new StringBuilder();
 
             HashMap<Object, Long> countOfOccurences = new HashMap<>();
             for (Object obj :
-                    outputCategories) {
-                long categoryCount = outputCategories.stream()
+                    list) {
+                long categoryCount = list.stream()
                         .filter(object -> object == obj)
                         .count();
                 countOfOccurences.put(obj, categoryCount);
@@ -45,12 +39,14 @@ public class LeafData {
 
             for (Map.Entry<Object, Long> entry :
                     countOfOccurences.entrySet()) {
-                output.append(entry.getKey().toString());
-                output.append(": ");
-                output.append(String.format("%.2f", ((float)entry.getValue() / outputCategories.size()) * 100));
-                output.append("% ");
+                outputString.append(entry.getKey().toString());
+                outputString.append(": ");
+                outputString.append(String.format("%.2f", ((float)entry.getValue() / list.size()) * 100));
+                outputString.append("% ");
             }
-            return output.toString();
+            return outputString.toString();
         }
+        else
+            return "Output Value: " + output.toString();
     }
 }
