@@ -9,6 +9,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class DataReader {
@@ -30,7 +31,7 @@ public class DataReader {
             e.printStackTrace();
         }
 
-        return data;
+        return Collections.unmodifiableList(data);
     }
 
     public static <T> List<T> readData(Class clazz, String filename, char columnSeparator) {

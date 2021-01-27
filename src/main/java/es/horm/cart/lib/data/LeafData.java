@@ -1,14 +1,12 @@
 package es.horm.cart.lib.data;
 
-import es.horm.cart.lib.Util;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class LeafData {
+public interface LeafData {
 
-    private Object output;
+    /*private Object output;
 
     public LeafData(Object output) {
         this.output = output;
@@ -48,5 +46,5 @@ public class LeafData {
         }
         else
             return "Output Value: " + output.toString();
-    }
+    }*/
 }

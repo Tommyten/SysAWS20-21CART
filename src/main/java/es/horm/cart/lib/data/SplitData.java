@@ -6,9 +6,9 @@ public class SplitData<T> {
     private final double mseOfSplit;
     private final Field fieldToSplitOn;
     private final T dataPointToSplitOn;
-    private final Comparable valueToSplitOn;
+    private final Comparable<?> valueToSplitOn;
 
-    public SplitData(double mseOfSplit, Field fieldToSplitOn, T dataPointToSplitOn, Comparable valueToSplitOn) {
+    public SplitData(double mseOfSplit, Field fieldToSplitOn, T dataPointToSplitOn, Comparable<?> valueToSplitOn) {
         this.mseOfSplit = mseOfSplit;
         this.fieldToSplitOn = fieldToSplitOn;
         this.dataPointToSplitOn = dataPointToSplitOn;
@@ -27,7 +27,7 @@ public class SplitData<T> {
         return dataPointToSplitOn;
     }
 
-    public Comparable getValueToSplitOn() {
+    public Comparable<?> getValueToSplitOn() {
         return valueToSplitOn;
     }
 

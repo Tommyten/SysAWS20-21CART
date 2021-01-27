@@ -2,7 +2,7 @@ package es.horm.cart.lib;
 
 import es.horm.cart.lib.data.LeafData;
 import es.horm.cart.lib.data.SplitData;
-import es.horm.cart.lib.data.annotation.OutputField;
+import es.horm.cart.lib.annotation.OutputField;
 import es.horm.cart.lib.strategy.CategorizationStrategy;
 import es.horm.cart.lib.strategy.RegressionStrategy;
 import es.horm.cart.lib.strategy.Strategy;
@@ -18,8 +18,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static es.horm.cart.lib.Util.getFieldValue;
-import static es.horm.cart.lib.Util.getFieldValueAsComparable;
+import static es.horm.cart.lib.Util.*;
 
 public class CART<T> {
 
@@ -54,10 +53,10 @@ public class CART<T> {
                 outputField.getType().equals(Float.class) ||
                 outputField.getType().equals(float.class)) {
             logger.info("Assuming a Regression Problem");
-            strategy = new RegressionStrategy<T>();
+            strategy = new RegressionStrategy<>();
         } else {
             logger.info("Assuming a Categorization Problem");
-            strategy = new CategorizationStrategy<T>();
+            strategy = new CategorizationStrategy<>();
         }
         return strategy;
     }
@@ -85,42 +84,42 @@ public class CART<T> {
         this.minBucketSize = minBucketSize;
         strategy.initStrategy(minBucketSize, outputField, dataSet);
         populateTree(dataSet, tree.getRoot());
-        System.out.println(tree.toString());
         return tree;
     }
 
     private void populateTree(List<T> data, Node currentNode) {
         SplitData<T> splitData = findBestSplit(data);
 
-        if (splitData == null || splitData.getFieldToSplitOn() == null) {
-            LeafData leafData = new LeafData(strategy.getLeafData(data));
+        if (splitData == null || splitData.getFieldToSplitOn() == null ||
+                strategy.getMetric(data) == 0) {
+            LeafData leafData = strategy.getLeafData(data);
             currentNode.setData(leafData);
             return;
         } else {
             currentNode.setData(splitData);
         }
 
-        Comparable splitValue = splitData.getValueToSplitOn();
+        Comparable<?> splitValue = splitData.getValueToSplitOn();
         Field dataColumn = splitData.getFieldToSplitOn();
 
-        List<T> leftBranch = getLeftBranch(data, splitValue, dataColumn);
+        List<T> leftBranch = getDataSmallerThanSplitValue(data, splitValue, dataColumn);
 
         // Wenn zu wenig Daten vorhanden sind -> Leafnode
         // Wenn MSE == 0 -> Daten perfekt kategorisiert also Leafnode
         if (leftBranch.size() <= minBucketSize * 2 - 1 ||
                 strategy.getMetric(leftBranch) == 0) {
-            LeafData leafData = new LeafData(strategy.getLeafData(leftBranch));
+            LeafData leafData = strategy.getLeafData(leftBranch);
             currentNode.setLeft(new Node(leafData));
         } else {
             currentNode.setLeft(new Node());
             populateTree(leftBranch, currentNode.getLeft());
         }
 
-        List<T> rightBranch = getRightBranch(data, splitValue, dataColumn);
+        List<T> rightBranch = getDataGreaterEqualsSplitValue(data, splitValue, dataColumn);
 
         if (rightBranch.size() <= minBucketSize * 2 - 1 ||
                 strategy.getMetric(leftBranch) == 0) {
-            LeafData leafData = new LeafData(strategy.getLeafData(rightBranch));
+            LeafData leafData = strategy.getLeafData(rightBranch);
             currentNode.setRight(new Node(leafData));
         } else {
             currentNode.setRight(new Node());
@@ -158,7 +157,7 @@ public class CART<T> {
         else return null;
 
         if (splitData.getFieldToSplitOn() != null)
-            logger.debug("Best Split Point is " + splitData.getFieldToSplitOn().toString() +
+            logger.trace("Best Split Point is " + splitData.getFieldToSplitOn().toString() +
                     " at Value " + splitData.getValueToSplitOn() +
                     " with Gini: " + splitData.getMseOfSplit());
         return splitData;
@@ -169,32 +168,14 @@ public class CART<T> {
     // ============================
 
     /**
-     * @param data
-     * @param splitValue
-     * @param columnToSplitOn
-     * @return
-     */
-    public static <T> List<T> getLeftBranch(List<T> data, Comparable splitValue, Field columnToSplitOn) {
-        return data.stream()
-                .filter(dataPoint -> getFieldValueAsComparable(dataPoint, columnToSplitOn).compareTo(splitValue) < 0)
-                .collect(Collectors.toList());
-    }
-
-    public static <T> List<T> getRightBranch(List<T> data, Comparable splitValue, Field columnToSplitOn) {
-        return data.stream()
-                .filter(dataPoint -> getFieldValueAsComparable(dataPoint, columnToSplitOn).compareTo(splitValue) >= 0)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Returns the Field of the class, which is marked with the @{@link es.horm.cart.lib.data.annotation.OutputField} annotation
+     * Returns the Field of the class, which is marked with the @{@link es.horm.cart.lib.annotation.OutputField} annotation
      *
-     * @param clazz The class in which the output Field is to be found
-     * @return The Field marked with the the @{@link es.horm.cart.lib.data.annotation.OutputField} annotation
-     * @throws RuntimeException if no Field in the given Class is marked with the @{@link es.horm.cart.lib.data.annotation.OutputField} annotation
+     * @param clazz  The class in which the output Field is to be found
+     * @return The Field marked with the the @{@link es.horm.cart.lib.annotation.OutputField} annotation
+     * @throws RuntimeException if no Field in the given Class is marked with the @{@link es.horm.cart.lib.annotation.OutputField} annotation
      * @see OutputField
      */
-    private Field getOutputField(Class clazz) {
+    private Field getOutputField(Class<?> clazz) {
         // TODO: Was ist wenn mehrere als Output field deklariert sind
         // TODO: duplicate Code; Same Code exists in Regression.java
         Field[] fieldList = clazz.getDeclaredFields();
@@ -207,25 +188,17 @@ public class CART<T> {
     }
 
     /**
-     * Returns all Fields <b>without</b> the @{@link es.horm.cart.lib.data.annotation.OutputField} annotation
+     * Returns all Fields <b>without</b> the @{@link es.horm.cart.lib.annotation.OutputField} annotation
      *
-     * @param clazz The class in which the data Field is to be found
+     * @param clazz  The class in which the data Field is to be found
      * @return a list of all datafields
      */
-    private List<Field> getDataFields(Class clazz) {
+    private List<Field> getDataFields(Class<?> clazz) {
         //TODO: Was wenn es auch noch andere als Data und OutputField gibt? -> Evtl. zweite Annotation?
         // TODO: duplicate Code; Same Code exists in Regression.java
         Field[] fieldList = clazz.getDeclaredFields();
         return Arrays.stream(fieldList)
                 .filter(field -> field.getAnnotation(OutputField.class) == null)
                 .collect(Collectors.toUnmodifiableList());
-    }
-
-    private List<?> getAllCategoriesDistinct(List<T> data) {
-        return data.stream().map(t -> getFieldValue(t, outputField)).distinct().collect(Collectors.toList());
-    }
-
-    private List<?> getAllCategories(List<T> data) {
-        return data.stream().map(t -> getFieldValue(t, outputField)).collect(Collectors.toList());
     }
 }

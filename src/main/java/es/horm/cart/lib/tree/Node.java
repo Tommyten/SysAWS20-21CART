@@ -35,14 +35,4 @@ public class Node {
     public void setData(Object data) {
         this.data = data;
     }
-
-    /*@Override
-    public String toString() {
-        StringBuilder stringbuilder = new StringBuilder();
-        stringbuilder.append(data.toString())
-        if(right != null)
-
-
-        return super.toString();
-    }*/
 }

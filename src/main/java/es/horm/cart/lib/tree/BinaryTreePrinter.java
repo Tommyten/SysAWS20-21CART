@@ -8,7 +8,7 @@ import java.io.PrintStream;
  */
 public class BinaryTreePrinter {
 
-    private BinaryTree tree;
+    private final BinaryTree tree;
 
     public BinaryTreePrinter(BinaryTree tree) {
         this.tree = tree;
@@ -62,6 +62,7 @@ public class BinaryTreePrinter {
 
     public void print(PrintStream os) {
         os.print(traversePreOrder(tree));
+        os.print("\n");
     }
 
 }

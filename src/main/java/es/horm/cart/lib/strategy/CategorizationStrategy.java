@@ -1,17 +1,20 @@
 package es.horm.cart.lib.strategy;
 
-import es.horm.cart.lib.CART;
+import es.horm.cart.lib.data.LeafData;
+import es.horm.cart.lib.data.LeafDataCategorization;
 import es.horm.cart.lib.data.SplitData;
-import es.horm.cart.lib.metrics.Gini;
+import es.horm.cart.lib.metric.Gini;
 
 import java.lang.reflect.Field;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
-import static es.horm.cart.lib.Util.getFieldValue;
-import static es.horm.cart.lib.Util.getFieldValueAsComparable;
+import static es.horm.cart.lib.Util.*;
+import static es.horm.cart.lib.metric.Gini.calculateGiniForGroup;
 
-public class CategorizationStrategy<T> extends Strategy<T> {
+public class CategorizationStrategy<T> implements Strategy<T> {
 
     private int minBucketSize;
     private Field outputField;
@@ -25,31 +28,45 @@ public class CategorizationStrategy<T> extends Strategy<T> {
     }
 
     @Override
-    public Object getLeafData(List<T> data) {
-        return data.stream().map(t -> getFieldValue(t, outputField)).collect(Collectors.toList());
+    public LeafData getLeafData(List<T> data) {
+        LeafDataCategorization leafData = new LeafDataCategorization();
+        HashMap<Comparable<?>, Integer> countMap = new HashMap<>();
+        for (T t :
+                data) {
+            Comparable<?> comparable = getFieldValueAsComparable(t, outputField);
+            if(countMap.containsKey(comparable)) {
+                countMap.put(comparable, countMap.get(comparable)+1);
+            } else {
+                countMap.put(comparable, 1);
+            }
+        }
+        for (Map.Entry<Comparable<?>, Integer> entry :
+                countMap.entrySet()) {
+            Comparable<?> key = entry.getKey();
+            Integer count = entry.getValue();
+            leafData.addProbability(key, (double) count/data.size());
+        }
+        return leafData;
     }
 
     @Override
     public double getMetric(List<T> data) {
-        return Gini.calculateGiniForGroup(data, outputField, categories);
+        return calculateGiniForGroup(data, outputField, categories);
     }
 
     @Override
     public Runnable findSplit(final Field dataColumn, T possibleSplitPoint, List<T> data, List<SplitData<T>> splitList) {
-        return new Runnable() {
-            @Override
-            public void run() {
-                Comparable splitValue = getFieldValueAsComparable(possibleSplitPoint, dataColumn);
-                List<T> leftBranchCandidate = CART.getLeftBranch(data, splitValue, dataColumn);
-                if (leftBranchCandidate.size() < minBucketSize) return;
+        return () -> {
+            Comparable<?> splitValue = getFieldValueAsComparable(possibleSplitPoint, dataColumn);
+            List<T> leftBranchCandidate = getDataSmallerThanSplitValue(data, splitValue, dataColumn);
+            if (leftBranchCandidate.size() < minBucketSize) return;
 
-                List<T> rightBranchCandidate = CART.getRightBranch(data, splitValue, dataColumn);
-                if (rightBranchCandidate.size() <= minBucketSize) return;
+            List<T> rightBranchCandidate = getDataGreaterEqualsSplitValue(data, splitValue, dataColumn);
+            if (rightBranchCandidate.size() <= minBucketSize) return;
 
-                double gini = Gini.calculateGiniForDataset(leftBranchCandidate, rightBranchCandidate, outputField, categories);
-                SplitData<T> splitData = new SplitData<>(gini, dataColumn, possibleSplitPoint, getFieldValueAsComparable(possibleSplitPoint, dataColumn));
-                splitList.add(splitData);
-            }
+            double gini = Gini.calculateGiniForDataset(leftBranchCandidate, rightBranchCandidate, outputField, categories);
+            SplitData<T> splitData = new SplitData<>(gini, dataColumn, possibleSplitPoint, getFieldValueAsComparable(possibleSplitPoint, dataColumn));
+            splitList.add(splitData);
         };
     }
 

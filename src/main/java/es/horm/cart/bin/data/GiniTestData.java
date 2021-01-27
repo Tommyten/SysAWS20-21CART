@@ -1,6 +1,6 @@
 package es.horm.cart.bin.data;
 
-import es.horm.cart.lib.data.annotation.OutputField;
+import es.horm.cart.lib.annotation.OutputField;
 
 public class GiniTestData {
 
