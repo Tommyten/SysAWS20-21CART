@@ -9,32 +9,15 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public class DataReader {
 
-    public static <T> List<T> readData(Class clazz, String filename) {
-        List<T> data = new ArrayList<>();
-        CsvMapper csvMapper = new CsvMapper();
-        CsvSchema schema = CsvSchema.emptySchema().withHeader().withColumnSeparator(';');
-
-        ObjectReader oReader = csvMapper.readerFor(clazz).with(schema);
-
-        try (Reader reader = new FileReader(filename)) {
-            MappingIterator<T> mi = oReader.readValues(reader);
-            while (mi.hasNext()) {
-                T current = mi.next();
-                data.add(current);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        return Collections.unmodifiableList(data);
+    public static <T> List<T> readData(Class<?> clazz, String filename) {
+        return readData(clazz, filename, ';');
     }
 
-    public static <T> List<T> readData(Class clazz, String filename, char columnSeparator) {
+    public static <T> List<T> readData(Class<?> clazz, String filename, char columnSeparator) {
         List<T> data = new ArrayList<>();
         CsvMapper csvMapper = new CsvMapper();
         CsvSchema schema = CsvSchema.emptySchema().withHeader().withColumnSeparator(columnSeparator);

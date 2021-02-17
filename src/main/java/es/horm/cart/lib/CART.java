@@ -24,7 +24,7 @@ public class CART<T> {
 
     private static final Logger logger = LogManager.getLogger(CART.class);
 
-    private final Strategy<T> strategy;
+    private Strategy<T> strategy;
 
     private final Field outputField;
     private final List<Field> dataFields;
@@ -40,25 +40,37 @@ public class CART<T> {
         dataFields = getDataFields(dataSet.get(0).getClass());
         setAllFieldsAccessible();
 
-        strategy = getStrategy();
+        initStrategy();
 
         tree = new BinaryTree();
         tree.setRoot(new Node());
     }
 
-    private Strategy<T> getStrategy() {
-        Strategy<T> strategy;
+    public CART(List<T> dataSet, List<Field> allowedFields) {
+        this.dataSet = dataSet;
+        outputField = getOutputField(dataSet.get(0).getClass());
+        dataFields = allowedFields;
+        setAllFieldsAccessible();
+
+        initStrategy();
+
+        tree = new BinaryTree();
+        tree.setRoot(new Node());
+    }
+
+    private void initStrategy() {
+        // Sets the Strategy to be used
         if (outputField.getType().equals(double.class) ||
                 outputField.getType().equals(Double.class) ||
                 outputField.getType().equals(Float.class) ||
                 outputField.getType().equals(float.class)) {
+            // If the output field is of Type Double or Float, assume a regression Problem
             logger.info("Assuming a Regression Problem");
             strategy = new RegressionStrategy<>();
         } else {
             logger.info("Assuming a Categorization Problem");
             strategy = new CategorizationStrategy<>();
         }
-        return strategy;
     }
 
     /**
@@ -118,7 +130,7 @@ public class CART<T> {
         List<T> rightBranch = getDataGreaterEqualsSplitValue(data, splitValue, dataColumn);
 
         if (rightBranch.size() <= minBucketSize * 2 - 1 ||
-                strategy.getMetric(leftBranch) == 0) {
+                strategy.getMetric(rightBranch) == 0) {
             LeafData leafData = strategy.getLeafData(rightBranch);
             currentNode.setRight(new Node(leafData));
         } else {
@@ -175,7 +187,7 @@ public class CART<T> {
      * @throws RuntimeException if no Field in the given Class is marked with the @{@link es.horm.cart.lib.annotation.OutputField} annotation
      * @see OutputField
      */
-    private Field getOutputField(Class<?> clazz) {
+    public Field getOutputField(Class<?> clazz) {
         // TODO: Was ist wenn mehrere als Output field deklariert sind
         // TODO: duplicate Code; Same Code exists in Regression.java
         Field[] fieldList = clazz.getDeclaredFields();
@@ -193,12 +205,20 @@ public class CART<T> {
      * @param clazz  The class in which the data Field is to be found
      * @return a list of all datafields
      */
-    private List<Field> getDataFields(Class<?> clazz) {
+    public static List<Field> getDataFields(Class<?> clazz) {
         //TODO: Was wenn es auch noch andere als Data und OutputField gibt? -> Evtl. zweite Annotation?
         // TODO: duplicate Code; Same Code exists in Regression.java
         Field[] fieldList = clazz.getDeclaredFields();
         return Arrays.stream(fieldList)
                 .filter(field -> field.getAnnotation(OutputField.class) == null)
                 .collect(Collectors.toUnmodifiableList());
+    }
+
+    public Strategy<T> getStrategy() {
+        return strategy;
+    }
+
+    public void setStrategy(Strategy<T> strategy) {
+        this.strategy = strategy;
     }
 }

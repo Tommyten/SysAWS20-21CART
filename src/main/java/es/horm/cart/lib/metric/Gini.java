@@ -27,6 +27,10 @@ public class Gini {
 
     public static <T, U> double calculateGiniForGroup(List<T> group, Field outputField, List<U> categories) {
         int groupSize = group.size();
+
+        if(group.size() == 0) return 0;
+
+        //Zähle wie oft, welche Kategorien vorkommen
         HashMap<U, Long> categoryCountMap = new HashMap<>();
         for (U obj :
                 categories) {

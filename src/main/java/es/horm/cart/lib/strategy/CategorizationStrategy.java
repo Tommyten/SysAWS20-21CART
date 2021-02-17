@@ -70,7 +70,7 @@ public class CategorizationStrategy<T> implements Strategy<T> {
         };
     }
 
-    private List<?> getAllCategoriesDistinct(List<T> data) {
+    public List<?> getAllCategoriesDistinct(List<T> data) {
         return data.stream().map(t -> getFieldValue(t, outputField)).distinct().collect(Collectors.toList());
     }
 }
