@@ -1,4 +1,4 @@
-package es.horm.cart.bin;
+package es.horm.cart.example;
 
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.databind.ObjectReader;

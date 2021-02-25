@@ -5,6 +5,8 @@ import java.io.PrintStream;
 /**
  * Source:
  * https://www.baeldung.com/java-print-binary-tree-diagram
+ * https://github.com/eugenp/tutorials/blob/master/data-structures/src/main/java/com/baeldung/printbinarytree/BinaryTreePrinter.java
+ * (MIT Licensed)
  */
 public class BinaryTreePrinter {
 

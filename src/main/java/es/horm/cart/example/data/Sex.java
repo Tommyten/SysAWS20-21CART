@@ -1,4 +1,4 @@
-package es.horm.cart.bin.data;
+package es.horm.cart.example.data;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 

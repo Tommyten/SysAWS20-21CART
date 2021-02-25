@@ -10,13 +10,20 @@ import java.util.List;
 
 import static es.horm.cart.lib.Util.*;
 
-public class RegressionStrategy<T> implements Strategy<T> {
+/**
+ * Default Implementation of a SplitStrategy for Regression problems.
+ * Uses Mean Squared error as metric for splits.
+ * Uses LeafDataRegression for the leafs
+ * @param <T> The data-POJO, which represents the trainingdata and the data, which is to be classified when the tree is built
+ * @see MeanSquaredError
+ * @see LeafDataRegression
+ */
+public class RegressionSplitStrategy<T> implements SplitStrategy<T> {
 
-    private int minBucketSize;
-    private Field outputField;
+    private final int minBucketSize;
+    private final Field outputField;
 
-    @Override
-    public void initStrategy(int minBucketSize, Field outputField, List<T> dataSet) {
+    public RegressionSplitStrategy(int minBucketSize, Field outputField) {
         this.minBucketSize = minBucketSize;
         this.outputField = outputField;
     }
@@ -40,7 +47,7 @@ public class RegressionStrategy<T> implements Strategy<T> {
     }
 
     @Override
-    public Runnable findSplit(Field dataColumn, T possibleSplitPoint, List<T> data, List<SplitData<T>> splitList) {
+    public Runnable getSplitCalculatorTask(Field dataColumn, T possibleSplitPoint, List<T> data, List<SplitData<T>> splitList) {
         return () -> {
             Comparable<?> splitValue = getFieldValueAsComparable(possibleSplitPoint, dataColumn);
             List<T> leftBranchCandidate = getDataSmallerThanSplitValue(data, splitValue, dataColumn);
@@ -49,9 +56,10 @@ public class RegressionStrategy<T> implements Strategy<T> {
             List<T> rightBranchCandidate = getDataGreaterEqualsSplitValue(data, splitValue, dataColumn);
             if(rightBranchCandidate.size() <= minBucketSize) return;
 
-            double smallerThanCandidateMSE = MeanSquaredError.calculateMeanSquaredErrorFromAverage(leftBranchCandidate, outputField);
-            double greaterEqualsCandidateMSE = MeanSquaredError.calculateMeanSquaredErrorFromAverage(rightBranchCandidate, outputField);
-            double totalMSE = smallerThanCandidateMSE + greaterEqualsCandidateMSE;
+            double smallerThanCandidateMSE = getMetric(leftBranchCandidate);
+            double greaterEqualsCandidateMSE = getMetric(rightBranchCandidate);
+            double totalMSE = (double) leftBranchCandidate.size()/data.size() * smallerThanCandidateMSE +
+                    (double) rightBranchCandidate.size()/data.size() * greaterEqualsCandidateMSE;
 
             SplitData<T> splitData = new SplitData<>(totalMSE, dataColumn, possibleSplitPoint, getFieldValueAsComparable(possibleSplitPoint, dataColumn));
             splitList.add(splitData);

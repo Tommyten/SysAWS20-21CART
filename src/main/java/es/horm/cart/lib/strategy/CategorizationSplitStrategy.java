@@ -2,8 +2,10 @@ package es.horm.cart.lib.strategy;
 
 import es.horm.cart.lib.data.LeafData;
 import es.horm.cart.lib.data.LeafDataCategorization;
+import es.horm.cart.lib.data.LeafDataRegression;
 import es.horm.cart.lib.data.SplitData;
 import es.horm.cart.lib.metric.Gini;
+import es.horm.cart.lib.metric.MeanSquaredError;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;
@@ -12,16 +14,23 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static es.horm.cart.lib.Util.*;
-import static es.horm.cart.lib.metric.Gini.calculateGiniForGroup;
+import static es.horm.cart.lib.metric.Gini.calculateGini;
 
-public class CategorizationStrategy<T> implements Strategy<T> {
+/**
+ * Default Implementation of a SplitStrategy for Categorization problems.
+ * Uses Gini-Index as metric for splits.
+ * Uses LeafDataCategorization for the leafs
+ * @param <T> The data-POJO, which represents the trainingdata and the data, which is to be classified when the tree is built
+ * @see Gini
+ * @see LeafDataCategorization
+ */
+public class CategorizationSplitStrategy<T> implements SplitStrategy<T> {
 
-    private int minBucketSize;
-    private Field outputField;
-    private List<?> categories;
+    private final int minBucketSize;
+    private final Field outputField;
+    private final List<?> categories;
 
-    @Override
-    public void initStrategy(int minBucketSize, Field outputField, List<T> dataSet) {
+    public CategorizationSplitStrategy(int minBucketSize, Field outputField, List<T> dataSet) {
         this.minBucketSize = minBucketSize;
         this.outputField = outputField;
         this.categories = getAllCategoriesDistinct(dataSet);
@@ -51,11 +60,11 @@ public class CategorizationStrategy<T> implements Strategy<T> {
 
     @Override
     public double getMetric(List<T> data) {
-        return calculateGiniForGroup(data, outputField, categories);
+        return calculateGini(data, outputField, categories);
     }
 
     @Override
-    public Runnable findSplit(final Field dataColumn, T possibleSplitPoint, List<T> data, List<SplitData<T>> splitList) {
+    public Runnable getSplitCalculatorTask(final Field dataColumn, T possibleSplitPoint, List<T> data, List<SplitData<T>> splitList) {
         return () -> {
             Comparable<?> splitValue = getFieldValueAsComparable(possibleSplitPoint, dataColumn);
             List<T> leftBranchCandidate = getDataSmallerThanSplitValue(data, splitValue, dataColumn);
@@ -64,7 +73,7 @@ public class CategorizationStrategy<T> implements Strategy<T> {
             List<T> rightBranchCandidate = getDataGreaterEqualsSplitValue(data, splitValue, dataColumn);
             if (rightBranchCandidate.size() <= minBucketSize) return;
 
-            double gini = Gini.calculateGiniForDataset(leftBranchCandidate, rightBranchCandidate, outputField, categories);
+            double gini = Gini.calculateWeightedGini(leftBranchCandidate, rightBranchCandidate, outputField, categories);
             SplitData<T> splitData = new SplitData<>(gini, dataColumn, possibleSplitPoint, getFieldValueAsComparable(possibleSplitPoint, dataColumn));
             splitList.add(splitData);
         };

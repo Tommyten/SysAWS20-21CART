@@ -1,9 +1,13 @@
 package es.horm.cart.lib;
 
+import es.horm.cart.lib.annotation.InputField;
+import es.horm.cart.lib.annotation.OutputField;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -19,6 +23,52 @@ public class Util {
      */
     private Util() {
         throw new AssertionError("Can't even instantiate this class using reflection");
+    }
+
+    /**
+     * Returns the Field of the class, which is marked with the @{@link es.horm.cart.lib.annotation.OutputField} annotation
+     *
+     * @param clazz  The class in which the output Field is to be found
+     * @return The Field marked with the the @{@link es.horm.cart.lib.annotation.OutputField} annotation
+     * @throws RuntimeException if no Field in the given Class is marked with the @{@link es.horm.cart.lib.annotation.OutputField} annotation
+     * @see OutputField
+     */
+    public static Field getOutputField(Class<?> clazz) {
+        Field[] fieldList = clazz.getDeclaredFields();
+        List<Field> outputFields = new ArrayList<>(1);
+        for (Field f :
+                fieldList) {
+            if (f.getAnnotation(OutputField.class) != null)
+                outputFields.add(f);
+        }
+        if(outputFields.size() == 0)
+            throw new RuntimeException("There must be exactly one OutputField");
+        else if(outputFields.size() > 1)
+            throw new RuntimeException("There can only be one OutputField per Data class");
+        outputFields.get(0).setAccessible(true);
+        return outputFields.get(0);
+    }
+
+    /**
+     * Returns all Fields with the @{@link es.horm.cart.lib.annotation.InputField} annotation
+     *
+     * @param clazz  The class in which the data Field is to be found
+     * @return a list of all fields in the specified class, which are annotated with the InputField annotation
+     */
+    public static List<Field> getDataFields(Class<?> clazz) {
+        Field[] fieldList = clazz.getDeclaredFields();
+
+        List<Field> inputFields = Arrays.stream(fieldList)
+                .filter(field -> field.getAnnotation(InputField.class) != null)
+                .collect(Collectors.toUnmodifiableList());
+
+        // sets all fields as accessible, so reflection works even with private fields
+        inputFields.forEach(field -> field.setAccessible(true));
+
+        if(inputFields.size() == 0)
+            throw new RuntimeException("There must be at least one field marked as InputField");
+
+        return inputFields;
     }
 
     /**
@@ -75,6 +125,7 @@ public class Util {
      * @return the value of the field on the given object
      */
     public static <T, R> R getFieldValue(T object, Field field) {
+        field.setAccessible(true);
         try {
             return (R) field.get(object);
         } catch (IllegalAccessException e) {
@@ -95,6 +146,7 @@ public class Util {
      * @return the value of the field on the given object as double
      */
     public static <T> double getFieldValueAsDouble(T object, Field field) {
+        field.setAccessible(true);
         try {
             return field.getDouble(object);
         } catch (IllegalAccessException e) {
@@ -116,6 +168,7 @@ public class Util {
      * @return the value of the field on the given object as Comparable
      */
     public static <T, R> Comparable<R> getFieldValueAsComparable(T object, Field field) {
+        field.setAccessible(true);
         try {
             return (Comparable<R>) field.get(object);
         } catch (IllegalAccessException e) {

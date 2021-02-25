@@ -1,26 +1,38 @@
-package es.horm.cart.bin.data;
+package es.horm.cart.example.data;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import es.horm.cart.lib.annotation.InputField;
 import es.horm.cart.lib.annotation.OutputField;
 
 public class WineData {
 
     @JsonProperty("fixed acidity")
+    @InputField
     float fixedAcidity;
     @JsonProperty("volatile acidity")
+    @InputField
     float volatileAcidity;
     @JsonProperty("citric acid")
+    @InputField
     float citricAcid;
     @JsonProperty("residual sugar")
+    @InputField
     float residualSugar;
+    @InputField
     float chlorides;
     @JsonProperty("free sulfur dioxide")
+    @InputField
     float freeSulfurDioxide;
     @JsonProperty("total sulfur dioxide")
+    @InputField
     float totalSulfurDioxide;
+    @InputField
     float density;
+    @InputField
     float pH;
+    @InputField
     float sulphates;
+    @InputField
     float alcohol;
 
     @OutputField

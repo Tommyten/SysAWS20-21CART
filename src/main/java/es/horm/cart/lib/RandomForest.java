@@ -1,11 +1,7 @@
 package es.horm.cart.lib;
 
 import es.horm.cart.lib.data.LeafData;
-import es.horm.cart.lib.data.LeafDataCategorization;
-import es.horm.cart.lib.data.SplitData;
-import es.horm.cart.lib.tree.BinaryTree;
-import es.horm.cart.lib.tree.BinaryTreePrinter;
-import es.horm.cart.lib.tree.Node;
+import es.horm.cart.lib.strategy.SplitStrategy;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -13,64 +9,33 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import static es.horm.cart.lib.Util.*;
+
 public class RandomForest<T> {
 
-    private final List<BinaryTree> treeList;
+    private final List<CART<T>> treeList;
     private final List<T> originalDataset;
-//    private final List<T> datasetWorkingCopy;
     private List<List<T>> datasetsForTrees;
     private final Random random = new Random(0);
     private final int numOfTrees;
-//    private final int minSizeOfDatasets;
-//
-//    private int numOfEntriesForEachTree;
+    private final Class<T> type;
+    private SplitStrategy<T> splitStrategy;
 
-    public RandomForest(List<T> dataset, int numOfTrees, int minSizeOfDatasets) {
+    public RandomForest(List<T> dataset, int numOfTrees, Class<T> type) {
         originalDataset = dataset;
         this.numOfTrees = numOfTrees;
-//        this.minSizeOfDatasets = minSizeOfDatasets;
-//        datasetWorkingCopy = new ArrayList<>(originalDataset);
+        this.type = type;
 
         treeList = new ArrayList<>(numOfTrees);
     }
 
-    public RandomForest(List<T> dataset, int numOfTrees) {
-        originalDataset = dataset;
-        this.numOfTrees = numOfTrees;
-
-        treeList = new ArrayList<>(numOfTrees);
-    }
-
-    /*
-    Attention: the datasetWorkingCopy can get quite large if:
-    - lots of trees
-    - minSizeOfDatasets is high
-
-    Arraylist offers best performance for lists.
-    Maybe using a list of lists could offer better performance (not tested)
+    /**
+     * Builds a random forest of CARTs.
      */
-
-    // Assemble a Dataset, so that there is enough data for each Tree in the
-    /*private void buildDatasets(boolean shuffle) {
-        // get the number of Entries, that can be used for each tree if the
-        // original Dataset were to be used
-        numOfEntriesForEachTree = (int) Math.ceil((float) originalDataset.size()/numOfTrees);
-
-        // If the calculated number of entries for each tree is smaller than the configured minimum number of entries
-        // for each tree, then append the original dataset as often as necessary
-        if(minSizeOfDatasets > numOfEntriesForEachTree) {
-            int multi = (int) Math.floor((float)minSizeOfDatasets/ numOfEntriesForEachTree);
-            for (int i = 0; i < multi; i++) {
-                datasetWorkingCopy.addAll(originalDataset);
-            }
-        }
-        // recalculate the number of entries that can be used for each tree (the last tree might have less elements)
-        numOfEntriesForEachTree = (int) Math.ceil((float)datasetWorkingCopy.size()/numOfTrees);
-
-        // Shuffle the assembled dataset if flag is set
-        if(shuffle)
-            Collections.shuffle(datasetWorkingCopy, random);
-    }*/
+    public void buildForest(int minBucketSize) {
+        buildDatasets();
+        buildTrees(minBucketSize);
+    }
 
     private void buildDatasets() {
         // Sample with replacement
@@ -99,8 +64,6 @@ public class RandomForest<T> {
         }
     }
 
-
-
     private void buildTrees(int minBucketSize) {
         ExecutorService es = Executors.newFixedThreadPool(10);
 
@@ -108,10 +71,13 @@ public class RandomForest<T> {
         for (List<T> dataset :
                 datasetsForTrees) {
             es.execute(() -> {
-                List<Field> fieldList = new ArrayList<>(CART.getDataFields(originalDataset.get(0).getClass()));
+                List<Field> fieldList = new ArrayList<>(getDataFields(originalDataset.get(0).getClass()));
                 Collections.shuffle(fieldList, random);
-                CART<T> cart = new CART<>(dataset, fieldList.subList(0, random.nextInt(fieldList.size())));
-                treeList.add(cart.buildTree(10));
+                List<Field> fieldsToUse = fieldList.subList(0, random.nextInt(fieldList.size()));
+                CART<T> cart = new CART<>(dataset, fieldsToUse, type);
+                if(splitStrategy != null) cart.setSplitStrategy(splitStrategy);
+                cart.buildTree(minBucketSize);
+                treeList.add(cart);
             });
         }
 
@@ -119,67 +85,27 @@ public class RandomForest<T> {
         boolean finished = false;
         while (!finished) {
             try {
-                finished = es.awaitTermination(minBucketSize, TimeUnit.SECONDS);
+                finished = es.awaitTermination(30, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
     }
 
-    /**
-     * Builds a random forest of CARTs.
-     *
-     */
-    public void buildForest(int minBucketSize) {
-        buildDatasets();
-        buildTrees(minBucketSize);
-    }
-
-    public HashMap<Comparable<?>, Double> findInForest(T indian) {
-        List<LeafData> leafDataList = findInAllTrees(indian);
-        HashMap<Comparable<?>, Double> probabilities = new HashMap<>();
-        for (LeafData data :
-                leafDataList) {
-            LeafDataCategorization leafData = (LeafDataCategorization) data;
-            for (Map.Entry<Comparable<?>, Double> entry :
-                    leafData.getProbabilityMap().entrySet()) {
-                if (probabilities.containsKey(entry.getKey())) {
-                    probabilities.put(entry.getKey(), probabilities.get(entry.getKey()) + entry.getValue());
-                } else {
-                    probabilities.put(entry.getKey(), entry.getValue());
-                }
-            }
-        }
-        probabilities.replaceAll((k, v) -> v / numOfTrees);
-        return probabilities;
-    }
-
-    public List<LeafData> findInAllTrees(T data) {
+    public List<LeafData> categorize(T data) {
         List<LeafData> leafDataList = new ArrayList<>(treeList.size());
-        for (BinaryTree tree :
+        for (CART<T> cart :
                 treeList) {
-            leafDataList.add(findValue(tree, data));
+            leafDataList.add(cart.categorize(data));
         }
         return leafDataList;
     }
 
-    public static <T> LeafData findValue(BinaryTree tree, T data) {
-        Node currentNode = tree.getRoot();
-        while (true) {
-            if (currentNode.getData() instanceof LeafData) {
-                return (LeafData) currentNode.getData();
+    public SplitStrategy<T> getSplitStrategy() {
+        return splitStrategy;
+    }
 
-            } else if (currentNode.getData() instanceof SplitData) {
-                // Suppress this warning as there is no way (that I know of) to go without it, as you cannot check
-                // for generics with instanceof :(
-                @SuppressWarnings("unchecked")
-                SplitData<T> split = (SplitData<T>) currentNode.getData();
-                Field splitField = split.getFieldToSplitOn();
-                if (Util.getFieldValueAsComparable(data, splitField).compareTo(split.getValueToSplitOn()) < 0)
-                    currentNode = currentNode.getLeft();
-                else
-                    currentNode = currentNode.getRight();
-            }
-        }
+    public void setSplitStrategy(SplitStrategy<T> splitStrategy) {
+        this.splitStrategy = splitStrategy;
     }
 }

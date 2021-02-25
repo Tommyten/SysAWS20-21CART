@@ -1,12 +1,17 @@
-package es.horm.cart.bin.data;
+package es.horm.cart.example.data;
 
+import es.horm.cart.lib.annotation.InputField;
 import es.horm.cart.lib.annotation.OutputField;
 
 public class IrisData {
 
+    @InputField
     float sepalLength;
+    @InputField
     float sepalWidth;
+    @InputField
     float petalLength;
+    @InputField
     float petalWidth;
     @OutputField
     IrisType type;

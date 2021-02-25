@@ -1,16 +1,13 @@
 package es.horm.cart.lib.tree;
 
+/**
+ * Basic Node class, which represents a Node of a BinaryTree
+ * @see BinaryTree
+ */
 public class Node {
 
     private Node left, right;
     private Object data;
-
-    public Node() {
-    }
-
-    public Node(Object data) {
-        this.data = data;
-    }
 
     public Node getLeft() {
         return left;
