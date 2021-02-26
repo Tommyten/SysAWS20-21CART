@@ -1,7 +1,6 @@
 package es.horm.cart.lib.data;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -16,22 +15,13 @@ import java.util.Map;
  */
 public class LeafDataCategorization implements LeafData {
 
-    private HashMap<Comparable<?>, Double> probabilityMap;
+    private final Map<Comparable<?>, Double> probabilityMap;
 
     /**
-     * Initializes an empty hashmap
+     * Initializes this leaf with the given probability map as read-only
      */
-    public LeafDataCategorization() {
-        probabilityMap = new HashMap<>();
-    }
-
-    /**
-     * Adds a probability for a certain category
-     * @param category which will be added
-     * @param probability probability of this class in the leaf
-     */
-    public void addProbability(Comparable<?> category, double probability) {
-        probabilityMap.put(category, probability);
+    public LeafDataCategorization(Map<Comparable<?>, Double> probabilityMap) {
+        this.probabilityMap = Collections.unmodifiableMap(probabilityMap);
     }
 
     /**

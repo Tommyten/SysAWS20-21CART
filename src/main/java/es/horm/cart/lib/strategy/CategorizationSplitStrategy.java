@@ -38,7 +38,6 @@ public class CategorizationSplitStrategy<T> implements SplitStrategy<T> {
 
     @Override
     public LeafData getLeafData(List<T> data) {
-        LeafDataCategorization leafData = new LeafDataCategorization();
         HashMap<Comparable<?>, Integer> countMap = new HashMap<>();
         for (T t :
                 data) {
@@ -49,13 +48,14 @@ public class CategorizationSplitStrategy<T> implements SplitStrategy<T> {
                 countMap.put(comparable, 1);
             }
         }
+        Map<Comparable<?>, Double> leafMap = new HashMap<>();
         for (Map.Entry<Comparable<?>, Integer> entry :
                 countMap.entrySet()) {
             Comparable<?> key = entry.getKey();
             Integer count = entry.getValue();
-            leafData.addProbability(key, (double) count/data.size());
+            leafMap.put(key, (double) count/data.size());
         }
-        return leafData;
+        return new LeafDataCategorization(leafMap);
     }
 
     @Override
